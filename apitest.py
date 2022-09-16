@@ -3,6 +3,8 @@ import pymongo
 from pyyoutube import Api
 from pprint import pprint
 from Google import Create_Service
+from PIL import Image
+import io
 
 key="AIzaSyDt_NYB2bM0gSG2vYUwHBqEcJIIMx-TBy4"
 api = Api(api_key=key)
@@ -22,6 +24,7 @@ except pymongo.errors.ServerSelectionTimeoutError:
 
 db = client['youtubedata']
 mycol = db['test01']
+imgcol = db['img']
 
 #DB CRUD
 
@@ -37,7 +40,12 @@ def insert_document(collection, doc):
     print("Inserted document with _id {}".format(document_id))
     return document_id
 
-video_by_chart = api.get_videos_by_chart(chart="mostPopular", region_code="NL", count=1)
+
+assignableCatogories = [1, 2, 10, 15, 17 , 19, 20, 22, 23, 24, 25, 26, 27, 28, 29]
+count = 0
+video_by_chart = api.get_videos_by_chart(chart="mostPopular", category_id="25", count=1)
+
+
 for i in video_by_chart.items:
     part_string = 'contentDetails,statistics,snippet'
     response = service.videos().list(
@@ -46,3 +54,14 @@ for i in video_by_chart.items:
     ).execute()
     insert_document(mycol ,response)
     pprint(response)
+    print(count)
+    count = count + 1
+
+f = Image.open("testpic.jpg")
+image_bytes = io.BytesIO()
+f.save(image_bytes, format='JPEG')
+image = {
+    'data': image_bytes.getvalue()
+}
+
+insert_document(imgcol ,image)
