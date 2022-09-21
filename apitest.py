@@ -1,13 +1,16 @@
-import re
 import pymongo
-from pyyoutube import Api
 from pprint import pprint
 from Google import Create_Service
 from PIL import Image
 import io
+import re
+from datetime import datetime, timedelta
 
-key="AIzaSyDt_NYB2bM0gSG2vYUwHBqEcJIIMx-TBy4"
-api = Api(api_key=key)
+
+d = datetime.today() - timedelta(days=1)
+d = d.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
 CLIENT_SECRET_FILE = 'client-secret.json'
 API_NAME = 'youtube'
 API_VERSION = 'v3'
@@ -40,22 +43,58 @@ def insert_document(collection, doc):
     print("Inserted document with _id {}".format(document_id))
     return document_id
 
-
-assignableCatogories = [1, 2, 10, 15, 17 , 19, 20, 22, 23, 24, 25, 26, 27, 28, 29]
-count = 0
-video_by_chart = api.get_videos_by_chart(chart="mostPopular", category_id="25", count=1)
-
-
-for i in video_by_chart.items:
-    part_string = 'contentDetails,statistics,snippet'
-    response = service.videos().list(
-	    part=part_string,
-	    id=i.id
+def ytsearchnonp(term):
+    search = service.search().list(
+            part="id",
+            type='video',
+            maxResults=50,
+            order="viewCount",
+            publishedAfter=d,
+            q=term,
+        )
+    searchresponse = search.execute()
+    return searchresponse
+def ytsearchnp(term,np):
+    search = service.search().list(
+            part="id",
+            type='video',
+            maxResults=50,
+            order="viewCount",
+            publishedAfter=d,
+            q=term,
+            pageToken = np
+        )
+    searchresponse = search.execute()
+    return searchresponse
+def videoinfodb(videolist):
+    counter = 0
+    for i in videolist['items']:
+        print(i)
+        response = service.videos().list(
+            part='contentDetails,statistics,snippet',
+            id=i['id']['videoId']
     ).execute()
-    insert_document(mycol ,response)
-    pprint(response)
-    print(count)
-    count = count + 1
+        insert_document(mycol ,response)
+        print(counter)
+        counter = counter + 1
+
+def ytscrape(term):
+    search = ytsearchnonp(term)
+    nextpagetoken = search['nextPageToken']
+    videoinfodb(search)
+    search = ytsearchnp(term,nextpagetoken)
+    nextpagetoken = search['nextPageToken']
+    videoinfodb(search)
+    search = ytsearchnp(term,nextpagetoken)
+    nextpagetoken = search['nextPageToken']
+    videoinfodb(search)
+    search = ytsearchnp(term,nextpagetoken)
+    nextpagetoken = search['nextPageToken']
+    videoinfodb(search)
+    
+
+ytscrape('news')
+keywords = ['News', 'Gaming', 'Trailer', 'Movies', 'Review', 'Tutorial', 'DIY', 'Music', 'Animation', 'Animals', 'Art', 'Stocks', 'Cars', 'Tech', 'Ad', 'Sports', 'Event', '']
 
 f = Image.open("testpic.jpg")
 image_bytes = io.BytesIO()
