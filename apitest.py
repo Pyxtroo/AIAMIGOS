@@ -5,10 +5,12 @@ from PIL import Image
 import io
 import re
 from datetime import datetime, timedelta
-
+import youtube_dl
+import wget
 
 d = datetime.today() - timedelta(days=1)
 d = d.strftime('%Y-%m-%dT%H:%M:%SZ')
+destination = r"C:\Users\thoma\Documents\IPDAMH\thumbnails"
 
 
 CLIENT_SECRET_FILE = 'client-secret.json'
@@ -43,6 +45,9 @@ def insert_document(collection, doc):
     print("Inserted document with _id {}".format(document_id))
     return document_id
 
+def mybar(current, total, width):
+    print('Downloading %d (%d/%d bytes' % (current / total * 100, current, total), end='\r')
+
 def ytsearchnonp(term):
     search = service.search().list(
             part="id",
@@ -67,7 +72,6 @@ def ytsearchnp(term,np):
     searchresponse = search.execute()
     return searchresponse
 def videoinfodb(videolist):
-    counter = 0
     for i in videolist['items']:
         print(i)
         response = service.videos().list(
@@ -75,8 +79,14 @@ def videoinfodb(videolist):
             id=i['id']['videoId']
     ).execute()
         insert_document(mycol ,response)
-        print(counter)
-        counter = counter + 1
+        wget.download(response['items']['snippet']['thumbnails']['high']['url'], bar=mybar, out=destination)
+        f = Image.open(r"C:\Users\thoma\Documents\IPDAMH\thumbnails\maxresdefault.jpg")
+        image_bytes = io.BytesIO()
+        f.save(image_bytes, format='JPEG')
+        image = {
+            'data': image_bytes.getvalue()
+        }
+        insert_document(imgcol ,image)
 
 def ytscrape(term):
     search = ytsearchnonp(term)
@@ -93,14 +103,7 @@ def ytscrape(term):
     videoinfodb(search)
     
 
-ytscrape('news')
 keywords = ['News', 'Gaming', 'Trailer', 'Movies', 'Review', 'Tutorial', 'DIY', 'Music', 'Animation', 'Animals', 'Art', 'Stocks', 'Cars', 'Tech', 'Ad', 'Sports', 'Event', '']
 
-f = Image.open("testpic.jpg")
-image_bytes = io.BytesIO()
-f.save(image_bytes, format='JPEG')
-image = {
-    'data': image_bytes.getvalue()
-}
-
-insert_document(imgcol ,image)
+for word in keywords:
+    ytscrape(word)
