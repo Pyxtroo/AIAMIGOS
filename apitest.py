@@ -5,12 +5,12 @@ from PIL import Image
 import io
 import re
 from datetime import datetime, timedelta
-import youtube_dl
 import wget
+import os
 
 d = datetime.today() - timedelta(days=1)
 d = d.strftime('%Y-%m-%dT%H:%M:%SZ')
-destination = r"C:\Users\thoma\Documents\IPDAMH\thumbnails"
+destination = r"C:\Users\Administrator\Desktop\AIAMIGOS\img"
 
 
 CLIENT_SECRET_FILE = 'client-secret.json'
@@ -73,21 +73,24 @@ def ytsearchnp(term,np):
     return searchresponse
 def videoinfodb(videolist):
     for i in videolist['items']:
-        print(i)
+        print('http://img.youtube.com/vi/' + i['id']['videoId'] + '/maxresdefault.jpg')
+        try:
+            wget.download('http://img.youtube.com/vi/' + i['id']['videoId'] + '/maxresdefault.jpg', bar=mybar, out=destination)
+            f = Image.open(r"C:\Users\Administrator\Desktop\AIAMIGOS\img\maxresdefault.jpg")
+            image_bytes = io.BytesIO()
+            f.save(image_bytes, format='JPEG')
+            image = {
+                'data': image_bytes.getvalue()
+            }
+            insert_document(imgcol ,image)
+            os.remove(r"C:\Users\Administrator\Desktop\AIAMIGOS\img\maxresdefault.jpg")
+        except:
+            pass
         response = service.videos().list(
             part='contentDetails,statistics,snippet',
             id=i['id']['videoId']
     ).execute()
         insert_document(mycol ,response)
-        wget.download(response['items']['snippet']['thumbnails']['high']['url'], bar=mybar, out=destination)
-        f = Image.open(r"C:\Users\thoma\Documents\IPDAMH\thumbnails\maxresdefault.jpg")
-        image_bytes = io.BytesIO()
-        f.save(image_bytes, format='JPEG')
-        image = {
-            'data': image_bytes.getvalue()
-        }
-        insert_document(imgcol ,image)
-
 def ytscrape(term):
     search = ytsearchnonp(term)
     nextpagetoken = search['nextPageToken']
@@ -95,15 +98,8 @@ def ytscrape(term):
     search = ytsearchnp(term,nextpagetoken)
     nextpagetoken = search['nextPageToken']
     videoinfodb(search)
-    search = ytsearchnp(term,nextpagetoken)
-    nextpagetoken = search['nextPageToken']
-    videoinfodb(search)
-    search = ytsearchnp(term,nextpagetoken)
-    nextpagetoken = search['nextPageToken']
-    videoinfodb(search)
-    
 
-keywords = ['News', 'Gaming', 'Trailer', 'Movies', 'Review', 'Tutorial', 'DIY', 'Music', 'Animation', 'Animals', 'Art', 'Stocks', 'Cars', 'Tech', 'Ad', 'Sports', 'Event', '']
+keywords = ['News', 'Gaming', 'Trailer', 'Movies', 'Review', 'Tutorial', 'DIY', 'Music', 'Animation', 'Animals', 'Art', 'Stocks', 'Cars', 'Tech', 'Ad', 'Sports', 'Event']
 
 for word in keywords:
     ytscrape(word)
