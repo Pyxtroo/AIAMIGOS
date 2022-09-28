@@ -7,11 +7,14 @@ import re
 from datetime import datetime, timedelta
 import wget
 import os
+from azure.cosmos import CosmosClient
+from azure.storage.blob import BlockBlobService, ContentSettings
+from pytube import YouTube
+import os
 
 d = datetime.today() - timedelta(days=1)
 d = d.strftime('%Y-%m-%dT%H:%M:%SZ')
 destination = r"C:\Users\Administrator\Desktop\AIAMIGOS\img"
-
 
 CLIENT_SECRET_FILE = 'client-secret.json'
 API_NAME = 'youtube'
@@ -27,9 +30,47 @@ try:
 except pymongo.errors.ServerSelectionTimeoutError:
     raise TimeoutError("Invalid API for MongoDB connection string or timed out when attempting to connect")
 
+CONFIG = {
+    "URL":"https://youtube-account.documents.azure.com:443",
+    "KEY":"39DWJE7yFct82fkfdXymGeuDpHqSug9KflpbrnCxUh3oQtmaJBnhPD2mh2IR3nhX3CcoP5KW0IEQPchjWzepJQ==",
+    "DATABASE_NAME" : "youtubeDB",
+    "CONTAINER_NAME": "youtubeContainer",
+    "STORAGE_ACCOUNT": "youtubestorage1",
+    "STORAGE_KEY": "vgIi0duJjfBfjrFH/ymP5uVelar1uTtDJm8IDANBkqaZeXarwh1Q2X7lepqzeGtgy5xhrRy7FVQm+AStPOMBPg=="
+}
+
+client_blob = CosmosClient(CONFIG["URL"], credential=CONFIG["KEY"])
+database = client_blob.get_database_client(CONFIG["DATABASE_NAME"])
+container = database.get_container_client(CONFIG["CONTAINER_NAME"])
+
+block_blob_service = BlockBlobService(account_name=CONFIG["STORAGE_ACCOUNT"], account_key=CONFIG["STORAGE_KEY"])
+
 db = client['youtubedata']
 mycol = db['test01']
 imgcol = db['img']
+
+def upload_img_url(img_url , name):
+    block_blob_service.copy_blob(container_name="imgcontainer",blob_name=name,copy_source=img_url)  
+
+
+def upload_vid(name):
+    SAVE_PATH = r"C:\Users\Administrator\Desktop\AIAMIGOS\vid"
+    link = f"https://www.youtube.com/watch?v={name}"
+    img_path = f"{name}.mp4"
+
+    url = YouTube(link)
+    video = url.streams.get_highest_resolution()
+    video.download(filename = img_path, output_path = SAVE_PATH)
+
+    block_blob_service.create_blob_from_path(
+    'vidcontainer',
+    name,
+    img_path,
+    content_settings=ContentSettings(content_type='video/mp4'))
+    print("vid is uploaded to blob!!")
+
+    if os.path.exists(img_path):
+        os.remove(img_path)
 
 #DB CRUD
 
@@ -59,6 +100,7 @@ def ytsearchnonp(term):
         )
     searchresponse = search.execute()
     return searchresponse
+
 def ytsearchnp(term,np):
     search = service.search().list(
             part="id",
@@ -71,10 +113,12 @@ def ytsearchnp(term,np):
         )
     searchresponse = search.execute()
     return searchresponse
+
 def videoinfodb(videolist):
     for i in videolist['items']:
-        print('http://img.youtube.com/vi/' + i['id']['videoId'] + '/maxresdefault.jpg')
+
         try:
+            upload_vid(i['id']['videoId'])
             wget.download('http://img.youtube.com/vi/' + i['id']['videoId'] + '/maxresdefault.jpg', bar=mybar, out=destination)
             f = Image.open(r"C:\Users\Administrator\Desktop\AIAMIGOS\img\maxresdefault.jpg")
             image_bytes = io.BytesIO()
@@ -83,14 +127,17 @@ def videoinfodb(videolist):
                 'data': image_bytes.getvalue()
             }
             insert_document(imgcol ,image)
+            upload_img_url(f , i['id']['videoId'])
             os.remove(r"C:\Users\Administrator\Desktop\AIAMIGOS\img\maxresdefault.jpg")
         except:
             pass
+
         response = service.videos().list(
             part='contentDetails,statistics,snippet',
             id=i['id']['videoId']
     ).execute()
         insert_document(mycol ,response)
+
 def ytscrape(term):
     search = ytsearchnonp(term)
     nextpagetoken = search['nextPageToken']
